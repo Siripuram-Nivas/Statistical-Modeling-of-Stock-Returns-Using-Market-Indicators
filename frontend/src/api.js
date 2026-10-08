@@ -3,6 +3,16 @@
 
 import axios from 'axios';
 
+const configuredApiUrl = import.meta.env.VITE_API_BASE_URL?.trim();
+const apiBaseURL = configuredApiUrl
+  ? new URL(
+    '/api',
+    /^https?:\/\//i.test(configuredApiUrl)
+      ? configuredApiUrl
+      : `https://${configuredApiUrl}`
+  ).toString().replace(/\/$/, '')
+  : '/api';
+
 const SESSION_STORAGE_KEY = 'market-analytics-session-id';
 const sessionClients = new Map();
 let fallbackUserSessionId = null;
@@ -34,7 +44,7 @@ export function createSessionId() {
 export function getSessionApiClient(sessionId) {
   if (!sessionClients.has(sessionId)) {
     const api = axios.create({
-      baseURL: '/api',
+      baseURL: apiBaseURL,
       timeout: 30000,
       headers: { 'X-Session-ID': sessionId },
     });

@@ -20,6 +20,7 @@ from __future__ import annotations
 
 import json
 import logging
+import os
 from typing import Optional
 
 logger = logging.getLogger(__name__)
@@ -59,9 +60,17 @@ app = FastAPI(
     version="1.0.0",
 )
 
+frontend_origin = os.getenv("FRONTEND_ORIGIN", "").strip().rstrip("/")
+if frontend_origin and not frontend_origin.startswith(("http://", "https://")):
+    frontend_origin = f"https://{frontend_origin}"
+
+allowed_origins = ["http://localhost:5173", "http://localhost:3000"]
+if frontend_origin and frontend_origin not in allowed_origins:
+    allowed_origins.append(frontend_origin)
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:5173", "http://localhost:3000"],
+    allow_origins=allowed_origins,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
