@@ -93,6 +93,9 @@ def test_statistical_endpoints():
     res_corr = client.get("/api/correlation", headers={"X-Session-ID": "test_session"})
     assert res_corr.status_code == 200
     assert "matrix" in res_corr.json()
+    for series in res_corr.json()["scatter_data"].values():
+        assert len(series["dates"]) == len(series["x"]) == len(series["y"])
+        assert all(date.fromisoformat(value) for value in series["dates"])
 
     res_reg = client.get("/api/regression?test_fraction=0.20", headers={"X-Session-ID": "test_session"})
     assert res_reg.status_code == 200

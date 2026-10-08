@@ -420,14 +420,17 @@ def pearson_correlation(x_session_id: str = Header(default="default")):
 
     scatter = {
         "market_vs_stock": {
+            "dates": [ds.dates[i] for i in scatter_indices],
             "x": [ds.market_return[i] for i in scatter_indices],
             "y": [ds.stock_return[i] for i in scatter_indices],
         },
         "volume_vs_stock": {
+            "dates": [ds.dates[i] for i in scatter_indices],
             "x": [ds.volume_change[i] for i in scatter_indices],
             "y": [ds.stock_return[i] for i in scatter_indices],
         },
         "prev_vs_stock": {
+            "dates": [ds.dates[i] for i in scatter_indices],
             "x": [ds.prev_stock_return[i] for i in scatter_indices],
             "y": [ds.stock_return[i] for i in scatter_indices],
         },

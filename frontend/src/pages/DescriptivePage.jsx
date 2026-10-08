@@ -3,21 +3,29 @@
 import React, { useEffect, useState } from 'react';
 import {
   BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer,
-  LineChart, Line, CartesianGrid, Legend
+  LineChart, Line, CartesianGrid, Legend, Brush
 } from 'recharts';
-import { BarChart2, Database } from 'lucide-react';
+import { Database } from 'lucide-react';
 import { useApp } from '../context/AppContext';
+import ChartInteractions from '../components/ChartInteractions';
+import InteractiveLegend from '../components/InteractiveLegend';
+import ChartWheelZoom from '../components/ChartWheelZoom';
+import useChartZoom from '../hooks/useChartZoom';
 import {
   LoadingDots, EmptyState, ErrorAlert, SyntheticBanner,
   Explainer, SectionHeader, ModuleBadge, Num, StatCard
 } from '../components/UI';
 
 // ─── Custom Tooltip ───────────────────────────────────────────────────────────
-function ChartTooltip({ active, payload, label }) {
+function ChartTooltip({ active, payload, label, variable }) {
   if (!active || !payload?.length) return null;
+  const bin = payload[0]?.payload;
   return (
     <div className="custom-tooltip">
-      <div style={{ fontWeight: 700, marginBottom: '0.25rem' }}>{label}</div>
+      <div style={{ fontWeight: 700, marginBottom: '0.25rem' }}>
+        {bin?.lowerBound !== undefined ? `${bin.lowerBound.toFixed(4)}% to ${bin.upperBound.toFixed(4)}%` : label}
+      </div>
+      {variable && <div style={{ fontSize: '0.7rem', color: 'var(--color-text-dim)' }}>{variable}</div>}
       {payload.map(p => (
         <div key={p.name} style={{ color: p.color, fontSize: '0.8125rem' }}>
           {p.name}: <strong>{typeof p.value === 'number' ? p.value.toFixed(4) : p.value}</strong>
@@ -28,31 +36,117 @@ function ChartTooltip({ active, payload, label }) {
 }
 
 // ─── Histogram ────────────────────────────────────────────────────────────────
-function Histogram({ data, color, bins = 20 }) {
+function Histogram({ data, color, title, bins = 20 }) {
   if (!data?.length) return null;
 
-  // Build bins
-  const min = Math.min(...data);
-  const max = Math.max(...data);
-  const binWidth = (max - min) / bins;
-
-  const binData = Array.from({ length: bins }, (_, i) => {
-    const binMin = min + i * binWidth;
-    const binMax = binMin + binWidth;
-    const count = data.filter(v => v >= binMin && (i === bins - 1 ? v <= binMax : v < binMax)).length;
-    return { bin: binMin.toFixed(2), count };
+  const values = data.filter(Number.isFinite);
+  if (!values.length) return null;
+  const { min, max } = values.reduce(
+    (range, value) => ({ min: Math.min(range.min, value), max: Math.max(range.max, value) }),
+    { min: Infinity, max: -Infinity }
+  );
+  const binWidth = max === min ? 1 : (max - min) / bins;
+  const binData = Array.from({ length: bins }, (_, i) => ({
+    bin: `${(min + i * binWidth).toFixed(2)}`,
+    lowerBound: min + i * binWidth,
+    upperBound: min + (i + 1) * binWidth,
+    count: 0,
+  }));
+  values.forEach((value) => {
+    const index = Math.min(bins - 1, Math.floor((value - min) / binWidth));
+    binData[index].count += 1;
   });
 
   return (
-    <ResponsiveContainer width="100%" height={220}>
-      <BarChart data={binData} margin={{ top: 0, right: 8, left: 0, bottom: 0 }}>
-        <CartesianGrid strokeDasharray="3 3" stroke="rgba(71,85,105,0.3)" />
-        <XAxis dataKey="bin" tick={{ fill: '#94a3b8', fontSize: 10 }} />
-        <YAxis tick={{ fill: '#94a3b8', fontSize: 10 }} />
-        <Tooltip content={<ChartTooltip />} />
-        <Bar dataKey="count" fill={color || 'var(--color-primary)'} radius={[2, 2, 0, 0]} />
-      </BarChart>
-    </ResponsiveContainer>
+    <>
+      <ResponsiveContainer width="100%" height={220}>
+        <BarChart
+          accessibilityLayer
+          aria-label={`${title} distribution histogram, showing frequency counts across value bins`}
+          data={binData}
+          margin={{ top: 0, right: 8, left: 0, bottom: 0 }}
+        >
+          <CartesianGrid strokeDasharray="3 3" stroke="rgba(71,85,105,0.3)" />
+          <XAxis dataKey="bin" tick={{ fill: '#94a3b8', fontSize: 10 }} />
+          <YAxis tick={{ fill: '#94a3b8', fontSize: 10 }} />
+          <Tooltip content={<ChartTooltip variable={title} />} cursor={{ fill: 'rgba(148,163,184,0.12)' }} />
+          <Bar dataKey="count" fill={color || 'var(--color-primary)'} radius={[2, 2, 0, 0]} />
+        </BarChart>
+      </ResponsiveContainer>
+      <ChartInteractions data={binData} title={`${title} distribution`} />
+    </>
+  );
+}
+
+function TimeSeriesChart({ fullData }) {
+  const data = fullData?.dates?.map((date, index) => ({
+    date,
+    stock: fullData.stock_return[index],
+    market: fullData.market_return[index],
+  })) || [];
+  const zoom = useChartZoom(data.length);
+  const [isolatedSeries, setIsolatedSeries] = useState(null);
+  const [hoveredSeries, setHoveredSeries] = useState(null);
+
+  if (!data.length) return null;
+
+  const displayedData = data.slice(zoom.startIndex, zoom.endIndex + 1);
+  const chartOpacity = (key) => hoveredSeries && hoveredSeries !== key ? 0.35 : 1;
+  const toggleSeries = (key) => setIsolatedSeries((current) => current === key ? null : key);
+
+  return (
+    <>
+      <ChartWheelZoom
+        onWheel={zoom.onWheel}
+        ariaLabel="Time series chart. Use the mouse wheel to zoom around the pointer, or drag the range handles below."
+      >
+        <ResponsiveContainer width="100%" height={260}>
+          <LineChart
+            accessibilityLayer
+            aria-label="Stock return and market return time series"
+            data={data}
+            margin={{ top: 0, right: 8, left: 0, bottom: 0 }}
+          >
+            <CartesianGrid strokeDasharray="3 3" stroke="rgba(71,85,105,0.3)" />
+            <XAxis dataKey="date" tick={{ fill: '#94a3b8', fontSize: 9 }} tickFormatter={v => v?.slice(5)} />
+            <YAxis tick={{ fill: '#94a3b8', fontSize: 10 }} unit="%" />
+            <Tooltip content={<ChartTooltip />} cursor={{ stroke: 'rgba(148,163,184,0.55)', strokeDasharray: '3 3' }} />
+            <Legend content={(props) => (
+              <InteractiveLegend
+                {...props}
+                isolatedSeries={isolatedSeries}
+                onToggle={toggleSeries}
+                onHover={setHoveredSeries}
+              />
+            )} />
+            <Line
+              type="monotone" dataKey="stock" name="Stock Return (%)"
+              stroke="var(--color-accent)" dot={false} activeDot={{ r: 4 }} strokeWidth={1.5}
+              hide={!!isolatedSeries && isolatedSeries !== 'stock'} strokeOpacity={chartOpacity('stock')}
+            />
+            <Line
+              type="monotone" dataKey="market" name="Market Return (%)"
+              stroke="var(--color-primary)" dot={false} activeDot={{ r: 4 }} strokeWidth={1}
+              hide={!!isolatedSeries && isolatedSeries !== 'market'} strokeOpacity={chartOpacity('market')}
+            />
+            <Brush
+              dataKey="date"
+              startIndex={zoom.startIndex}
+              endIndex={zoom.endIndex}
+              onChange={zoom.onBrushChange}
+              travellerWidth={8}
+              height={18}
+              stroke="var(--color-primary)"
+            />
+          </LineChart>
+        </ResponsiveContainer>
+      </ChartWheelZoom>
+      <ChartInteractions
+        data={displayedData}
+        title="Stock and market returns over time"
+        onResetView={zoom.resetZoom}
+      />
+    </>
   );
 }
 
@@ -187,7 +281,7 @@ export default function DescriptivePage() {
                   <div key={key} className="chart-container">
                     <div className="chart-title">{label}</div>
                     <div className="chart-question">{q}</div>
-                    <Histogram data={datasetFull.full_data?.[key]} color={color} />
+                    <Histogram data={datasetFull.full_data?.[key]} color={color} title={label} />
                   </div>
                 ))}
               </div>
@@ -196,24 +290,7 @@ export default function DescriptivePage() {
               <div className="chart-container" data-guided-demo-target="demo-time-series" style={{ marginBottom: '1.5rem' }}>
                 <div className="chart-title">Time Series</div>
                 <div className="chart-question">How did stock returns vary over time?</div>
-                <ResponsiveContainer width="100%" height={240}>
-                  <LineChart
-                    data={datasetFull.full_data?.dates?.map((d, i) => ({
-                      date: d,
-                      stock: datasetFull.full_data.stock_return[i],
-                      market: datasetFull.full_data.market_return[i],
-                    }))}
-                    margin={{ top: 0, right: 8, left: 0, bottom: 0 }}
-                  >
-                    <CartesianGrid strokeDasharray="3 3" stroke="rgba(71,85,105,0.3)" />
-                    <XAxis dataKey="date" tick={{ fill: '#94a3b8', fontSize: 9 }} tickFormatter={v => v?.slice(5)} />
-                    <YAxis tick={{ fill: '#94a3b8', fontSize: 10 }} unit="%" />
-                    <Tooltip content={<ChartTooltip />} />
-                    <Legend wrapperStyle={{ fontSize: '0.75rem', color: '#94a3b8' }} />
-                    <Line type="monotone" dataKey="stock" name="Stock Return (%)" stroke="var(--color-accent)" dot={false} strokeWidth={1.5} />
-                    <Line type="monotone" dataKey="market" name="Market Return (%)" stroke="var(--color-primary)" dot={false} strokeWidth={1} />
-                  </LineChart>
-                </ResponsiveContainer>
+                <TimeSeriesChart fullData={datasetFull.full_data} />
               </div>
             </>
           )}

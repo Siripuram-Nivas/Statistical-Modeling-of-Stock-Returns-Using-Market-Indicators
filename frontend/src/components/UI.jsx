@@ -10,7 +10,7 @@ export function LoadingDots({ label = 'Loading...' }) {
       <div className="loading-dots">
         <span /><span /><span />
       </div>
-      <p style={{ color: 'var(--color-text-muted)', fontSize: '0.875rem' }}>{label}</p>
+      <p style={{ color: 'var(--color-text-muted)', fontSize: 'var(--font-size-sm)' }}>{label}</p>
     </div>
   );
 }
@@ -21,8 +21,8 @@ export function EmptyState({ icon: Icon, title, subtitle, action }) {
     <div className="empty-state">
       {Icon && <Icon className="empty-state__icon" />}
       <div>
-        <h3 style={{ fontSize: '1.125rem', fontWeight: 700, marginBottom: '0.25rem' }}>{title}</h3>
-        {subtitle && <p style={{ fontSize: '0.875rem' }}>{subtitle}</p>}
+        <h3 style={{ fontSize: '1.125rem', fontWeight: 700, marginBottom: 'var(--space-1)' }}>{title}</h3>
+        {subtitle && <p style={{ fontSize: 'var(--font-size-sm)' }}>{subtitle}</p>}
       </div>
       {action}
     </div>
@@ -112,9 +112,9 @@ export function Explainer({ title, children, show = true }) {
 
 export function PageHeader({ title, subtitle }) {
   return (
-    <div style={{ marginBottom: '1.5rem' }}>
-      <h2 style={{ fontSize: '1.5rem', fontWeight: 800, marginBottom: '0.25rem' }}>{title}</h2>
-      {subtitle && <p style={{ color: 'var(--color-text-muted)', fontSize: '0.875rem' }}>{subtitle}</p>}
+    <div style={{ marginBottom: 'var(--space-xl)' }}>
+      <h2 style={{ fontSize: '1.5rem', fontWeight: 800, marginBottom: 'var(--space-1)' }}>{title}</h2>
+      {subtitle && <p style={{ color: 'var(--color-text-muted)', fontSize: 'var(--font-size-sm)' }}>{subtitle}</p>}
     </div>
   );
 }
@@ -124,7 +124,7 @@ export function Card({ children, className = '' }) {
 }
 
 export function CardTitle({ children }) {
-  return <div style={{ fontSize: '0.75rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em', color: 'var(--color-text-dim)', marginBottom: '0.75rem' }}>{children}</div>;
+  return <div style={{ fontSize: 'var(--font-size-xs)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em', color: 'var(--color-text-dim)', marginBottom: 'var(--space-4)' }}>{children}</div>;
 }
 
 export function CardContent({ children, className = '' }) {
@@ -139,11 +139,11 @@ export function ModuleBadge({ label }) {
 // ─── Section Header ──────────────────────────────────────────────────────────
 export function SectionHeader({ title, subtitle, badge, action }) {
   return (
-    <div style={{ marginBottom: '1.5rem', display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+    <div style={{ marginBottom: 'var(--space-xl)', display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
       <div>
-        {badge && <div style={{ marginBottom: '0.5rem' }}>{badge}</div>}
-        <h2 style={{ fontSize: '1.5rem', fontWeight: 800, marginBottom: '0.25rem' }}>{title}</h2>
-        {subtitle && <p style={{ color: 'var(--color-text-muted)', fontSize: '0.875rem' }}>{subtitle}</p>}
+        {badge && <div style={{ marginBottom: 'var(--space-3)' }}>{badge}</div>}
+        <h2 style={{ fontSize: '1.5rem', fontWeight: 800, marginBottom: 'var(--space-1)' }}>{title}</h2>
+        {subtitle && <p style={{ color: 'var(--color-text-muted)', fontSize: 'var(--font-size-sm)' }}>{subtitle}</p>}
       </div>
       {action && <div>{action}</div>}
     </div>
@@ -198,14 +198,14 @@ export function R2Indicator({ value }) {
 
   return (
     <div>
-      <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.375rem', fontSize: '0.75rem' }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 'var(--space-1)', fontSize: 'var(--font-size-xs)' }}>
         <span style={{ color: 'var(--color-text-muted)' }}>Proportion of variance explained (R²)</span>
         <span style={{ color, fontWeight: 700 }}>{label}</span>
       </div>
       <div className="progress-bar">
         <div className="progress-bar__fill" style={{ width: `${pct * 100}%`, background: color }} />
       </div>
-      <p style={{ fontSize: '0.75rem', color: 'var(--color-text-dim)', marginTop: '0.375rem' }}>
+      <p style={{ fontSize: 'var(--font-size-xs)', color: 'var(--color-text-dim)', marginTop: 'var(--space-2)' }}>
         Note: R² is not an accuracy percentage. It describes the proportion of variance in stock return
         explained by the model relative to a mean-only baseline.
       </p>
@@ -225,7 +225,7 @@ export function CorrelationBadge({ strength, direction }) {
   return (
     <span style={{
       color: colors[strength] || 'var(--color-text-muted)',
-      fontSize: '0.75rem',
+      fontSize: 'var(--font-size-xs)',
       fontWeight: 700,
       textTransform: 'capitalize'
     }}>
@@ -244,15 +244,15 @@ export function LogEntry({ step, status, detail, rowsAffected }) {
   };
   return (
     <div style={{
-      display: 'flex', gap: '0.75rem', padding: '0.5rem 0',
-      borderBottom: '1px solid rgba(71,85,105,0.3)', fontSize: '0.8125rem'
+      display: 'flex', gap: 'var(--space-3)', padding: 'var(--space-2) 0',
+      borderBottom: '1px solid rgba(71,85,105,0.3)', fontSize: 'var(--font-size-sm)'
     }}>
       <div style={{ marginTop: 2, flexShrink: 0 }}>{icons[status] || icons.info}</div>
       <div>
         <span style={{ fontWeight: 600, color: 'var(--color-text)' }}>{step}</span>
-        <span style={{ color: 'var(--color-text-muted)', marginLeft: '0.5rem' }}>{detail}</span>
+        <span style={{ color: 'var(--color-text-muted)', marginLeft: 'var(--space-2)' }}>{detail}</span>
         {rowsAffected > 0 && (
-          <span style={{ color: 'var(--color-text-dim)', marginLeft: '0.5rem', fontSize: '0.75rem' }}>
+          <span style={{ color: 'var(--color-text-dim)', marginLeft: 'var(--space-2)', fontSize: 'var(--font-size-xs)' }}>
             ({rowsAffected} rows)
           </span>
         )}

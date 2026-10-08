@@ -23,20 +23,20 @@ export default function MarketOverviewPage() {
       </Explainer>
 
       {!isLoaded ? (
-        <Card className="mt-4">
-          <CardContent className="py-12 text-center text-(--color-text-dim)">
-            <p>Load market data to activate analytics.</p>
-          </CardContent>
-        </Card>
+        <div className="card" style={{ marginTop: '1.5rem' }}>
+          <div style={{ padding: '3rem 2rem', textAlign: 'center', color: 'var(--color-text-dim)' }}>
+            <p style={{ margin: 0 }}>Load market data to activate analytics.</p>
+          </div>
+        </div>
       ) : (
-        <div className="grid grid-cols-3 gap-6 mt-6">
+        <div className="market-overview-grid">
           <Card>
             <CardTitle>Total Observations</CardTitle>
             <CardContent>
-              <div className="text-3xl font-light text-(--color-primary)">
+              <div className="market-kpi-value">
                 {dataSummary?.rows || 0}
               </div>
-              <div className="text-sm text-(--color-text-dim) mt-1">
+              <div className="market-kpi-sub">
                 Trading days
               </div>
             </CardContent>
@@ -45,11 +45,11 @@ export default function MarketOverviewPage() {
           <Card>
             <CardTitle>Date Range</CardTitle>
             <CardContent>
-              <div className="text-lg font-medium">
+              <div className="market-date-value">
                 {dataSummary?.date_range?.[0] || 'N/A'}
               </div>
-              <div className="text-sm text-(--color-text-dim) my-1">to</div>
-              <div className="text-lg font-medium">
+              <div className="market-date-sep">to</div>
+              <div className="market-date-value">
                 {dataSummary?.date_range?.[1] || 'N/A'}
               </div>
             </CardContent>
@@ -58,8 +58,8 @@ export default function MarketOverviewPage() {
           <Card>
             <CardTitle>Core Variables</CardTitle>
             <CardContent>
-              <ul className="text-sm space-y-2 mt-2">
-                <li><span className="text-(--color-accent) font-medium">Daily Stock Return (%)</span></li>
+              <ul className="market-vars-list">
+                <li><span className="accent">Daily Stock Return (%)</span></li>
                 <li>Market Return (%)</li>
                 <li>Volume Change (%)</li>
                 <li>Previous Day Return (%)</li>

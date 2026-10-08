@@ -35,7 +35,7 @@ const NAV_SECTIONS = [
   }
 ];
 
-export default function Sidebar() {
+export default function Sidebar({ isOpen = false, onClose }) {
   const {
     activeModule, setActiveModule, dataset, beginnerMode, setBeginnerMode,
     guidedDemo, startGuidedDemo,
@@ -43,16 +43,21 @@ export default function Sidebar() {
   const hasData = !!dataset;
 
   return (
-    <nav className="sidebar" role="navigation" aria-label="Main navigation">
+    <nav
+      className={`sidebar${isOpen ? ' is-open' : ''}`}
+      id="sidebar-nav"
+      role="navigation"
+      aria-label="Main navigation"
+    >
       {/* Brand */}
       <div style={{ marginBottom: '1.5rem' }}>
         <div style={{
-          fontSize: '0.85rem', fontWeight: 800, letterSpacing: '0.05em',
-          color: 'var(--color-primary)', marginBottom: '0.25rem', lineHeight: 1.2
+          fontSize: 'var(--font-size-sm)', fontWeight: 800, letterSpacing: '0.05em',
+          color: 'var(--color-primary)', marginBottom: 'var(--space-1)', lineHeight: 1.2
         }}>
           STOCK RETURN<br/>PREDICTION
         </div>
-        <div style={{ fontSize: '0.75rem', color: 'var(--color-text-dim)', lineHeight: 1.4, fontWeight: 500 }}>
+        <div style={{ fontSize: 'var(--font-size-xs)', color: 'var(--color-text-dim)', lineHeight: 1.4, fontWeight: 500 }}>
           Market Analytics
         </div>
       </div>
@@ -137,10 +142,12 @@ export default function Sidebar() {
           </span>
           <button
             onClick={() => setBeginnerMode(!beginnerMode)}
+            role="switch"
+            aria-checked={beginnerMode}
             style={{
               width: '40px', height: '22px', borderRadius: '11px',
               background: beginnerMode ? 'var(--color-primary)' : 'var(--color-card)',
-              border: 'none', cursor: 'pointer', position: 'relative', transition: 'background 0.2s',
+              border: 'none', cursor: 'pointer', position: 'relative', transition: 'background var(--motion-instant) var(--motion-ease)',
             }}
             aria-label="Toggle analysis mode"
           >

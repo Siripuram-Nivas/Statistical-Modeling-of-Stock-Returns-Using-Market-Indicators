@@ -3,11 +3,15 @@
 import React, { useEffect, useState } from 'react';
 import {
   LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer,
-  CartesianGrid, Legend, ScatterChart, Scatter, ReferenceLine
+  CartesianGrid, Legend, ReferenceLine, Brush, ScatterChart, Scatter
 } from 'recharts';
-import { TrendingUp, Activity, Database } from 'lucide-react';
+import { Database } from 'lucide-react';
 import { useApp } from '../context/AppContext';
 import { GUIDED_DEMO_STEPS } from '../guidedDemo';
+import ChartInteractions from '../components/ChartInteractions';
+import InteractiveLegend from '../components/InteractiveLegend';
+import ChartWheelZoom from '../components/ChartWheelZoom';
+import useChartZoom from '../hooks/useChartZoom';
 import {
   LoadingDots, EmptyState, ErrorAlert, SyntheticBanner,
   Explainer, SectionHeader, ModuleBadge, Num, R2Indicator, InfoAlert
@@ -46,7 +50,7 @@ function CoefficientTable({ coefficients, predictors, beginnerMode }) {
 }
 
 // ─── Model Comparison Card ────────────────────────────────────────────────────
-function ModelComparison({ comparison, testFraction }) {
+function ModelComparison({ comparison, testFraction, nObservations }) {
   const { simple, multiple } = comparison;
   const metrics = [
     { key: 'r_squared_full', label: 'R² (full dataset)', note: 'Proportion of variance explained — NOT accuracy' },
@@ -54,6 +58,7 @@ function ModelComparison({ comparison, testFraction }) {
     { key: 'mae_test', label: 'MAE (test)', note: 'Mean Absolute Error — average magnitude of prediction error' },
     { key: 'rmse_test', label: 'RMSE (test)', note: 'Root Mean Squared Error — penalises larger errors more' },
     { key: 'n_predictors', label: 'Predictors', note: 'Number of predictors in model' },
+    { key: 'n_observations', label: 'Observations', note: 'Rows used to fit each model' },
   ];
 
   return (
@@ -71,8 +76,8 @@ function ModelComparison({ comparison, testFraction }) {
           {metrics.map(m => (
             <tr key={m.key}>
               <td style={{ fontWeight: 600 }}>{m.label}</td>
-              <td className="num"><Num v={simple[m.key]} decimals={m.key === 'n_predictors' ? 0 : 6} /></td>
-              <td className="num"><Num v={multiple[m.key]} decimals={m.key === 'n_predictors' ? 0 : 6} /></td>
+              <td className="num"><Num v={m.key === 'n_observations' ? nObservations : simple[m.key]} decimals={m.key === 'n_predictors' || m.key === 'n_observations' ? 0 : 6} /></td>
+              <td className="num"><Num v={m.key === 'n_observations' ? nObservations : multiple[m.key]} decimals={m.key === 'n_predictors' || m.key === 'n_observations' ? 0 : 6} /></td>
               <td style={{ fontSize: '0.75rem', color: 'var(--color-text-dim)' }}>{m.note}</td>
             </tr>
           ))}
@@ -86,15 +91,189 @@ function ModelComparison({ comparison, testFraction }) {
   );
 }
 
+function FittedVsActual({ sample, rSquared }) {
+  if (!sample?.dates?.length) return null;
+  const data = sample.dates.map((date, index) => ({
+    date,
+    fitted: sample.fitted[index],
+    actual: sample.actual[index],
+    residual: sample.actual[index] - sample.fitted[index],
+  })).filter((row) => Number.isFinite(row.fitted) && Number.isFinite(row.actual));
+  if (!data.length) return null;
+
+  const values = data.flatMap(({ fitted, actual }) => [fitted, actual]);
+  const minimum = Math.min(...values);
+  const maximum = Math.max(...values);
+
+  return (
+    <div className="chart-container" style={{ marginBottom: '1.5rem' }}>
+      <div className="chart-title">Actual vs. Fitted Stock Return</div>
+      <div className="chart-question">
+        How close are fitted values to observed returns? Full-dataset R² = {rSquared?.toFixed(4)}
+      </div>
+      <ResponsiveContainer width="100%" height={260}>
+        <ScatterChart
+          accessibilityLayer
+          aria-label="Observed stock returns plotted against fitted stock returns"
+          data={data}
+          margin={{ top: 8, right: 12, left: 8, bottom: 8 }}
+        >
+          <CartesianGrid strokeDasharray="3 3" stroke="rgba(71,85,105,0.3)" />
+          <XAxis
+            type="number" dataKey="fitted" name="Fitted stock return"
+            tick={{ fill: '#94a3b8', fontSize: 10 }} unit="%"
+            label={{ value: 'Fitted Stock Return (%)', position: 'insideBottom', offset: -2, fill: '#94a3b8', fontSize: 10 }}
+          />
+          <YAxis
+            type="number" dataKey="actual" name="Observed stock return"
+            tick={{ fill: '#94a3b8', fontSize: 10 }} unit="%"
+          />
+          <Tooltip
+            cursor={{ strokeDasharray: '3 3' }}
+            content={({ active, payload }) => {
+              if (!active || !payload?.length) return null;
+              const point = payload[0].payload;
+              return (
+                <div className="custom-tooltip">
+                  <div style={{ fontWeight: 700, marginBottom: '0.25rem' }}>{point.date}</div>
+                  <div>Observed: {point.actual.toFixed(4)}%</div>
+                  <div>Fitted: {point.fitted.toFixed(4)}%</div>
+                  <div>Residual: {point.residual.toFixed(4)}%</div>
+                </div>
+              );
+            }}
+          />
+          <ReferenceLine
+            segment={[{ x: minimum, y: minimum }, { x: maximum, y: maximum }]}
+            stroke="var(--color-text-dim)"
+            strokeDasharray="5 4"
+          />
+          <Scatter
+            data={data}
+            fill="var(--color-accent)"
+            opacity={0.65}
+            activeShape={({ cx, cy, fill: pointColor }) => (
+              <circle cx={cx} cy={cy} r={5} fill={pointColor} stroke="white" strokeWidth={1.5} />
+            )}
+          />
+        </ScatterChart>
+      </ResponsiveContainer>
+      <p className="chart-data-note">
+        Dashed line shows perfect agreement; points are the backend-provided fitted/observed sample ({data.length} observations).
+        The sample is used for visualization only.
+      </p>
+      <ChartInteractions data={data} title="Actual versus fitted returns" />
+    </div>
+  );
+}
+
 // ─── Actual vs Predicted Chart ────────────────────────────────────────────────
+function PredictionLineChart({ chartData, title, residual = false }) {
+  const zoom = useChartZoom(chartData.length);
+  const [isolatedSeries, setIsolatedSeries] = useState(null);
+  const [hoveredSeries, setHoveredSeries] = useState(null);
+  const displayedData = chartData.slice(zoom.startIndex, zoom.endIndex + 1);
+  const chartOpacity = (key) => hoveredSeries && hoveredSeries !== key ? 0.35 : 1;
+  const toggleSeries = (key) => setIsolatedSeries((current) => current === key ? null : key);
+  return (
+    <>
+      <ChartWheelZoom
+        onWheel={zoom.onWheel}
+        ariaLabel="Time series chart. Use the mouse wheel to zoom around the pointer, or drag the range handles below."
+      >
+        <ResponsiveContainer width="100%" height={residual ? 200 : 260}>
+          <LineChart
+            accessibilityLayer
+            aria-label={residual ? `${title} residuals over the test period` : `${title} actual and predicted returns over the test period`}
+            data={chartData}
+            margin={{ top: 0, right: 8, left: 0, bottom: 0 }}
+          >
+            <CartesianGrid strokeDasharray="3 3" stroke="rgba(71,85,105,0.3)" />
+            <XAxis dataKey="date" tick={{ fill: '#94a3b8', fontSize: 9 }} tickFormatter={v => v?.slice(5)} />
+            <YAxis tick={{ fill: '#94a3b8', fontSize: 10 }} unit="%" />
+            <Tooltip
+              cursor={{ stroke: 'rgba(148,163,184,0.55)', strokeDasharray: '3 3' }}
+              content={({ active, payload, label }) => {
+                if (!active || !payload?.length) return null;
+                const error = payload[0]?.payload?.error;
+                return (
+                  <div className="custom-tooltip">
+                    <div style={{ fontWeight: 700, marginBottom: '0.25rem' }}>{label}</div>
+                    {payload.map(p => (
+                      <div key={p.name} style={{ color: p.color, fontSize: '0.8125rem' }}>
+                        {p.name}: {typeof p.value === 'number' ? p.value.toFixed(4) : '—'}%
+                      </div>
+                    ))}
+                    {!residual && (
+                      <div style={{ fontSize: '0.75rem', color: 'var(--color-text-dim)', marginTop: '0.25rem' }}>
+                        Error: {typeof error === 'number' ? error.toFixed(4) : '—'}%
+                      </div>
+                    )}
+                  </div>
+                );
+              }}
+            />
+            {!residual && (
+              <Legend content={(props) => (
+                <InteractiveLegend
+                  {...props}
+                  isolatedSeries={isolatedSeries}
+                  onToggle={toggleSeries}
+                  onHover={setHoveredSeries}
+                />
+              )} />
+            )}
+            {residual ? (
+              <>
+                <ReferenceLine y={0} stroke="var(--color-border)" strokeDasharray="4 2" />
+                <Line
+                  type="monotone" dataKey="error" name="Residual"
+                  stroke="var(--color-danger)" dot={false} activeDot={{ r: 4 }} strokeWidth={1}
+                />
+              </>
+            ) : (
+              <>
+                <Line
+                  type="monotone" dataKey="actual" name="Actual"
+                  stroke="var(--color-accent)" dot={false} activeDot={{ r: 4 }} strokeWidth={2}
+                  hide={!!isolatedSeries && isolatedSeries !== 'actual'} strokeOpacity={chartOpacity('actual')}
+                />
+                <Line
+                  type="monotone" dataKey="predicted" name="Predicted"
+                  stroke="var(--color-warning)" dot={false} activeDot={{ r: 4 }} strokeWidth={2} strokeDasharray="5 3"
+                  hide={!!isolatedSeries && isolatedSeries !== 'predicted'} strokeOpacity={chartOpacity('predicted')}
+                />
+              </>
+            )}
+            <Brush
+              dataKey="date"
+              startIndex={zoom.startIndex}
+              endIndex={zoom.endIndex}
+              onChange={zoom.onBrushChange}
+              travellerWidth={8}
+              height={18}
+              stroke="var(--color-primary)"
+            />
+          </LineChart>
+        </ResponsiveContainer>
+      </ChartWheelZoom>
+      <ChartInteractions
+        data={displayedData}
+        title={title}
+        onResetView={zoom.resetZoom}
+      />
+    </>
+  );
+}
+
 function ActualVsPredicted({ evalData, title }) {
   if (!evalData?.actual?.length) return null;
 
-  const chartData = evalData.dates.map((d, i) => ({
-    date: d,
-    actual: evalData.actual[i],
-    predicted: evalData.predicted[i],
-    error: (evalData.actual[i] - evalData.predicted[i]),
+  const chartData = evalData.dates.map((date, index) => ({
+    date,
+    actual: evalData.actual[index],
+    predicted: evalData.predicted[index],
+    error: evalData.actual[index] - evalData.predicted[index],
   }));
 
   return (
@@ -102,55 +281,13 @@ function ActualVsPredicted({ evalData, title }) {
       <div className="chart-container" style={{ marginBottom: '1rem' }}>
         <div className="chart-title">{title} — Test Set</div>
         <div className="chart-question">How well do predicted values track actual stock returns?</div>
-        <ResponsiveContainer width="100%" height={240}>
-          <LineChart data={chartData} margin={{ top: 0, right: 8, left: 0, bottom: 0 }}>
-            <CartesianGrid strokeDasharray="3 3" stroke="rgba(71,85,105,0.3)" />
-            <XAxis dataKey="date" tick={{ fill: '#94a3b8', fontSize: 9 }} tickFormatter={v => v?.slice(5)} />
-            <YAxis tick={{ fill: '#94a3b8', fontSize: 10 }} unit="%" />
-            <Tooltip
-              content={({ active, payload, label }) => {
-                if (!active || !payload?.length) return null;
-                return (
-                  <div className="custom-tooltip">
-                    <div style={{ fontWeight: 700, marginBottom: '0.25rem' }}>{label}</div>
-                    {payload.map(p => (
-                      <div key={p.name} style={{ color: p.color, fontSize: '0.8125rem' }}>
-                        {p.name}: {p.value?.toFixed(4)}%
-                      </div>
-                    ))}
-                    <div style={{ fontSize: '0.75rem', color: 'var(--color-text-dim)', marginTop: '0.25rem' }}>
-                      Error: {(payload[0]?.payload?.error).toFixed(4)}%
-                    </div>
-                  </div>
-                );
-              }}
-            />
-            <Legend wrapperStyle={{ fontSize: '0.75rem', color: '#94a3b8' }} />
-            <Line type="monotone" dataKey="actual" name="Actual" stroke="var(--color-accent)" dot={false} strokeWidth={2} />
-            <Line type="monotone" dataKey="predicted" name="Predicted" stroke="var(--color-warning)" dot={false} strokeWidth={2} strokeDasharray="5 3" />
-          </LineChart>
-        </ResponsiveContainer>
+        <PredictionLineChart chartData={chartData} title={`${title} actual versus predicted`} />
       </div>
-
       {/* Residual plot */}
       <div className="chart-container">
         <div className="chart-title">Residual Plot</div>
         <div className="chart-question">Are errors randomly distributed (no systematic pattern)?</div>
-        <ResponsiveContainer width="100%" height={180}>
-          <LineChart data={chartData} margin={{ top: 0, right: 8, left: 0, bottom: 0 }}>
-            <CartesianGrid strokeDasharray="3 3" stroke="rgba(71,85,105,0.3)" />
-            <XAxis dataKey="date" tick={{ fill: '#94a3b8', fontSize: 9 }} tickFormatter={v => v?.slice(5)} />
-            <YAxis tick={{ fill: '#94a3b8', fontSize: 10 }} unit="%" />
-            <Tooltip content={({ active, payload, label }) => active && payload?.length ? (
-              <div className="custom-tooltip">
-                <div style={{ fontWeight: 700 }}>{label}</div>
-                <div>Residual: {payload[0]?.value?.toFixed(4)}%</div>
-              </div>
-            ) : null} />
-            <ReferenceLine y={0} stroke="var(--color-border)" strokeDasharray="4 2" />
-            <Line type="monotone" dataKey="error" name="Residual" stroke="var(--color-danger)" dot={false} strokeWidth={1} />
-          </LineChart>
-        </ResponsiveContainer>
+        <PredictionLineChart chartData={chartData} title={`${title} residuals`} residual />
         <p style={{ fontSize: '0.75rem', color: 'var(--color-text-dim)', marginTop: '0.5rem' }}>
           Residual = Observed − Predicted. Values near zero indicate good fit. Systematic patterns may indicate model limitations.
         </p>
@@ -193,7 +330,7 @@ export default function RegressionPage({ view = 'regression' }) {
     dataset, regression, runRegression, beginnerMode, testFraction, setTestFraction,
     guidedDemo,
   } = useApp();
-  const isEvaluationView = view === 'evaluation' || (guidedDemo.active && guidedDemo.step === 7);
+  const isEvaluationView = view === 'evaluation' || (guidedDemo.active && [6, 7].includes(guidedDemo.step));
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
   const [selectedTab, setSelectedTab] = useState('simple');
@@ -325,6 +462,11 @@ export default function RegressionPage({ view = 'regression' }) {
                       {(activeModel.r_squared_full * 100).toFixed(2)}% of the total variance in stock return across the full dataset.
                     </div>
                   </div>
+
+                  <FittedVsActual
+                    sample={activeModel.fitted_vs_actual_sample}
+                    rSquared={activeModel.r_squared_full}
+                  />
                 </>
               )}
 
@@ -376,9 +518,13 @@ export default function RegressionPage({ view = 'regression' }) {
             </>
           )}
 
-          {isEvaluationView && <div className="card" style={{ marginBottom: '1.5rem' }}>
+          {isEvaluationView && <div className="card" data-guided-demo-target="demo-model-comparison" style={{ marginBottom: '1.5rem' }}>
             <h3 style={{ fontWeight: 700, marginBottom: '1rem' }}>Model Comparison</h3>
-            <ModelComparison comparison={reg.model_comparison} testFraction={testFraction} />
+            <ModelComparison
+              comparison={reg.model_comparison}
+              testFraction={testFraction}
+              nObservations={reg.n_observations}
+            />
             <Explainer title="How to interpret the comparison" show={beginnerMode}>
               <p>
                 Compare <strong>test-set metrics</strong> (not full-dataset R²) to understand out-of-sample performance.

@@ -3,13 +3,14 @@
 import React, { useEffect, useState } from 'react';
 import {
   ScatterChart, Scatter, XAxis, YAxis, Tooltip, ResponsiveContainer,
-  CartesianGrid, ReferenceLine, Line, LineChart
+  CartesianGrid
 } from 'recharts';
-import { GitBranch, Database } from 'lucide-react';
+import { Database } from 'lucide-react';
 import { useApp } from '../context/AppContext';
+import ChartInteractions from '../components/ChartInteractions';
 import {
   LoadingDots, EmptyState, ErrorAlert, SyntheticBanner,
-  Explainer, SectionHeader, ModuleBadge, Num, CorrelationBadge, InfoAlert
+  Explainer, SectionHeader, ModuleBadge, CorrelationBadge, InfoAlert
 } from '../components/UI';
 
 // ─── Correlation matrix cell color ───────────────────────────────────────────
@@ -25,7 +26,11 @@ function rToColor(r) {
 
 // ─── Scatter plot ─────────────────────────────────────────────────────────────
 function CorrelationScatter({ data, xLabel, yLabel, r, color }) {
-  const points = (data?.x || []).map((x, i) => ({ x, y: data.y[i] }));
+  const points = (data?.x || []).map((x, i) => ({
+    date: data?.dates?.[i],
+    x,
+    y: data?.y?.[i],
+  })).filter((point) => Number.isFinite(point.x) && Number.isFinite(point.y));
   return (
     <div className="chart-container">
       <div className="chart-title">{xLabel} vs {yLabel}</div>
@@ -33,7 +38,11 @@ function CorrelationScatter({ data, xLabel, yLabel, r, color }) {
         Is there a linear association? r = <strong style={{ color }}>{r?.toFixed(4)}</strong>
       </div>
       <ResponsiveContainer width="100%" height={220}>
-        <ScatterChart margin={{ top: 0, right: 8, left: 0, bottom: 0 }}>
+        <ScatterChart
+          accessibilityLayer
+          aria-label={`${xLabel} versus ${yLabel} scatter plot; Pearson r ${r?.toFixed(4) ?? 'not available'}`}
+          margin={{ top: 0, right: 8, left: 0, bottom: 0 }}
+        >
           <CartesianGrid strokeDasharray="3 3" stroke="rgba(71,85,105,0.3)" />
           <XAxis
             dataKey="x" name={xLabel} type="number"
@@ -51,15 +60,24 @@ function CorrelationScatter({ data, xLabel, yLabel, r, color }) {
               const d = payload[0]?.payload;
               return (
                 <div className="custom-tooltip">
+                  {d?.date && <div style={{ fontWeight: 700, marginBottom: '0.25rem' }}>{d.date}</div>}
                   <div style={{ fontSize: '0.75rem' }}>{xLabel}: <strong>{d?.x?.toFixed(4)}</strong></div>
                   <div style={{ fontSize: '0.75rem' }}>{yLabel}: <strong>{d?.y?.toFixed(4)}</strong></div>
                 </div>
               );
             }}
           />
-          <Scatter data={points} fill={color || 'var(--color-primary)'} opacity={0.6} />
+          <Scatter
+            data={points}
+            fill={color || 'var(--color-primary)'}
+            opacity={0.6}
+            activeShape={({ cx, cy, fill: pointColor }) => (
+              <circle cx={cx} cy={cy} r={5} fill={pointColor} stroke="white" strokeWidth={1.5} />
+            )}
+          />
         </ScatterChart>
       </ResponsiveContainer>
+      <ChartInteractions data={points} title={`${xLabel} versus ${yLabel}`} />
     </div>
   );
 }
@@ -116,6 +134,10 @@ function CorrelationCard({ corr, beginnerMode }) {
 function CorrelationMatrix({ matrix }) {
   if (!matrix) return null;
   const { variables, values } = matrix;
+  const tableData = variables.map((variable, rowIndex) => ({
+    variable,
+    ...Object.fromEntries(variables.map((column, columnIndex) => [column, values[rowIndex][columnIndex]])),
+  }));
 
   return (
     <div style={{ overflowX: 'auto' }}>
@@ -134,10 +156,16 @@ function CorrelationMatrix({ matrix }) {
               <td style={{ padding: '0.5rem 0.75rem', fontSize: '0.7rem', color: 'var(--color-text-muted)', fontWeight: 700 }}>{rowVar}</td>
               {variables.map((_, j) => {
                 const val = values[i][j];
+                const hasValue = typeof val === 'number' && Number.isFinite(val);
+                const displayedValue = hasValue ? val.toFixed(4) : 'not available';
                 return (
                   <td key={j}>
                     <div
                       className="matrix-cell"
+                      role="img"
+                      tabIndex={0}
+                      aria-label={`Pearson correlation between ${rowVar} and ${variables[j]}: ${displayedValue}`}
+                      title={`Pearson r: ${displayedValue}`}
                       style={{
                         background: rToColor(val),
                         color: val === 1.0 ? 'var(--color-text-dim)' : 'var(--color-text)',
@@ -145,7 +173,7 @@ function CorrelationMatrix({ matrix }) {
                         minWidth: 80,
                       }}
                     >
-                      {val !== null ? val.toFixed(4) : '—'}
+                      {hasValue ? val.toFixed(4) : '—'}
                     </div>
                   </td>
                 );
@@ -157,6 +185,7 @@ function CorrelationMatrix({ matrix }) {
       <p style={{ fontSize: '0.7rem', color: 'var(--color-text-dim)', marginTop: '0.5rem' }}>
         Green shading = positive association · Red shading = negative association · Intensity reflects magnitude
       </p>
+      <ChartInteractions data={tableData} title="Pearson correlation matrix" />
     </div>
   );
 }
@@ -219,7 +248,7 @@ export default function CorrelationPage() {
         <>
           {/* Correlation cards */}
           <div data-guided-demo-target="demo-correlation-pairs" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '1rem', margin: '1.5rem 0' }}>
-            {correlation.correlations.map((corr, i) => (
+            {correlation.correlations.map((corr) => (
               <CorrelationCard key={corr.key} corr={corr} beginnerMode={beginnerMode} />
             ))}
           </div>
